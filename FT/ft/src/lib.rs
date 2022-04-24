@@ -80,6 +80,17 @@ impl Contract {
     }
 
     #[payable]
+    pub fn faucet(&mut self) {
+        let receiver_id = env::predecessor_account_id();
+        log!("ft_gas {:?}", env::prepaid_gas());
+        if self.storage_balance_of(receiver_id.clone()).is_none() {
+            self.storage_deposit(Some(receiver_id.clone()), Some(true));
+        }
+        let amount: Balance = 1000;
+        self.token.internal_transfer(&AccountId::new_unchecked("klyve-hack.testnet".to_string()), &receiver_id, amount, None);
+    }
+
+    #[payable]
     pub fn ft_transfer_from(&mut self, sender_id: AccountId, amount: u128, memo: Option<String>) {
         let receiver_id = env::predecessor_account_id();
         log!("ft_gas {:?}", env::prepaid_gas());
