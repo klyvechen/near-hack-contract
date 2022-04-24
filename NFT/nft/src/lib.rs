@@ -23,9 +23,8 @@ use near_contract_standards::non_fungible_token::NonFungibleToken;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::collections::{ LazyOption, Vector };
 use near_sdk::json_types::U128;
-
 use near_sdk::{
-    env, near_bindgen, ext_contract, log, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue, Balance, PromiseResult
+    env, near_bindgen, ext_contract, log, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue, Balance, PromiseResult, Gas
 };
 
 
@@ -135,25 +134,26 @@ impl Contract {
     pub fn nft_mint_by_ft(&mut self, ft_amount: U128) {
         // let gas = env::prepaid_gas();
         assert!(self.minted_ids.len() <= 10000, "Sold out");
+        assert!(env::prepaid_gas() > Gas(1_000_000_000_000) * 25, "25T Gas is the minimum requirement");
         log!("transfered from account {}", env::predecessor_account_id());
         let ft_contract: AccountId = AccountId::new_unchecked("klyve-hack-ft.klyve-hack.testnet".to_string());
-        let sender: AccountId = AccountId::new_unchecked("klyve-hack.testnet".to_string());
+        // let sender: AccountId = AccountId::new_unchecked("klyve-hack.testnet".to_string());
         log!("prepaid gas {:?}, used {:?}, diff {:?}", env::prepaid_gas(), env::used_gas() * 8u64, env::prepaid_gas() - env::used_gas());
         ext_ft::ft_transfer_from(
-            // env::predecessor_account_id(),
-            sender,
+            env::predecessor_account_id(),
+            // sender,
             ft_amount.into(),
             None,
             ft_contract, // contract account id
             1, // yocto NEAR to attach
             // 5_000_000_000_000
-            env::used_gas() * 8u64
+            Gas(1_000_000_000_000) * 5
         )
         .then(ext_self::nft_mint_by_ft_callback(
             env::predecessor_account_id(), // nft claimer
             env::current_account_id(), // this contract's account id
             env::attached_deposit(), // yocto NEAR to attach to the callback
-            env::used_gas() * 16u64// gas to attach
+            Gas(1_000_000_000_000) * 20// gas to attach
         ));
     }
 

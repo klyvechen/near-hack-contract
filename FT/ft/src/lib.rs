@@ -81,9 +81,13 @@ impl Contract {
 
     #[payable]
     pub fn ft_transfer_from(&mut self, sender_id: AccountId, amount: u128, memo: Option<String>) {
-        log!("ft_gas {:?}", env::prepaid_gas());
-        assert_one_yocto();
         let receiver_id = env::predecessor_account_id();
+        log!("ft_gas {:?}", env::prepaid_gas());
+        if self.storage_balance_of(sender_id.clone()).is_none() {
+            self.storage_deposit(Some(sender_id.clone()), Some(true));
+        } else {
+            assert_one_yocto();
+        }
         let amount: Balance = amount.into();
         self.token.internal_transfer(&sender_id, &receiver_id, amount, memo);
     }
