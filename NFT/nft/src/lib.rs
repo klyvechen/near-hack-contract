@@ -34,7 +34,7 @@ use near_sdk::{
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Contract {
-    holder_ids: Vector<AccountId>,
+    minted_ids: Vector<AccountId>,
     tokens: NonFungibleToken,
     metadata: LazyOption<NFTContractMetadata>,
 }
@@ -87,7 +87,7 @@ impl Contract {
         assert!(!env::state_exists(), "Already initialized");
         metadata.assert_valid();
         Self {
-            holder_ids: Vector::new(b"".to_vec()), 
+            minted_ids: Vector::new(b"".to_vec()), 
             tokens: NonFungibleToken::new(
                 StorageKey::NonFungibleToken,
                 owner_id,
@@ -102,7 +102,26 @@ impl Contract {
     #[payable]
     pub fn nft_mint_pay(&mut self) {
         let amount: Balance = near_sdk::env::attached_deposit();
-        log!("attach money is {}", amount);
+        log!("attach money is {}, singer_account_id {}, predecessor_account_id {}", amount, env::signer_account_id(), env::predecessor_account_id());
+        self.minted_ids.push(&env::predecessor_account_id());
+        let mint_id = self.minted_ids.len().to_string();
+        self.tokens.internal_mint_with_refund(mint_id.clone(), env::predecessor_account_id(), 
+            Some(TokenMetadata {
+                title: Some(format!("klyve hack nft {}", mint_id)), // ex. "Arch Nemesis: Mail Carrier" or "Parcel #5055"
+                description: Some(format!("the klyve hack nft, minted by NEAR, id {}", mint_id)), // free-form description
+                media: Some("https://near.org/wp-content/uploads/2020/09/cropped-favicon-270x270.png".to_string()), // URL to associated media, preferably to decentralized, content-addressed storage
+                media_hash: None, // Base64-encoded sha256 hash of content referenced by the `media` field. Required if `media` is included.
+                copies: None, // number of copies of this set of metadata in existence when token was minted.
+                issued_at: None, // When token was issued or minted, Unix epoch in milliseconds
+                expires_at: None, // When token expires, Unix epoch in milliseconds
+                starts_at: None, // When token starts being valid, Unix epoch in milliseconds
+                updated_at: None, // When token was last updated, Unix epoch in milliseconds
+                extra: None, // anything extra the NFT wants to store on-chain. Can be stringified JSON.
+                reference: None, // URL to an off-chain JSON file with more info.
+                reference_hash: None 
+            }),
+            None
+        );
         if amount < 1000000000000000000000000 {
             panic!("Near deposit amount is not enough, the mint price is 1N.");
         } else if amount > 1000000000000000000000000 {
@@ -110,13 +129,12 @@ impl Contract {
             log!("attach money too much, transfer back {}", back_amount);
             Promise::new(near_sdk::env::signer_account_id()).transfer(back_amount);
         }
-        
     }
 
     #[payable]
     pub fn nft_mint_by_ft(&mut self, ft_amount: U128) {
         // let gas = env::prepaid_gas();
-        assert!(self.holder_ids.len() <= 10000, "Sold out");
+        assert!(self.minted_ids.len() <= 10000, "Sold out");
         log!("transfered from account {}", env::predecessor_account_id());
         let ft_contract: AccountId = AccountId::new_unchecked("klyve-hack-ft.klyve-hack.testnet".to_string());
         let sender: AccountId = AccountId::new_unchecked("klyve-hack.testnet".to_string());
@@ -154,25 +172,27 @@ impl Contract {
             PromiseResult::Failed => "oops! transfer from sender failed".to_string(),
             PromiseResult::Successful(result) => {
                 // log!("{}", String::from_utf8(result.clone()).unwrap());
-                self.holder_ids.push(&to);
+                self.minted_ids.push(&to);
                 // self.token_amt_to_mint = self.token_amt_to_mint + 1;
-                let mint_id = self.holder_ids.len().to_string();
+                let mint_id = self.minted_ids.len().to_string();
                 log!("{}", mint_id);
-                Contract::nft_mint(self, mint_id, to, 
-                TokenMetadata {
-                    title: Some("klyve hack nft".to_string()), // ex. "Arch Nemesis: Mail Carrier" or "Parcel #5055"
-                    description: Some("the klyve hack nft, can be minted by NEAR or Big Nana".to_string()), // free-form description
-                    media: Some("https://near.org/wp-content/uploads/2020/09/cropped-favicon-270x270.png".to_string()), // URL to associated media, preferably to decentralized, content-addressed storage
-                    media_hash: None, // Base64-encoded sha256 hash of content referenced by the `media` field. Required if `media` is included.
-                    copies: None, // number of copies of this set of metadata in existence when token was minted.
-                    issued_at: None, // When token was issued or minted, Unix epoch in milliseconds
-                    expires_at: None, // When token expires, Unix epoch in milliseconds
-                    starts_at: None, // When token starts being valid, Unix epoch in milliseconds
-                    updated_at: None, // When token was last updated, Unix epoch in milliseconds
-                    extra: None, // anything extra the NFT wants to store on-chain. Can be stringified JSON.
-                    reference: None, // URL to an off-chain JSON file with more info.
-                    reference_hash: None 
-                });
+                self.tokens.internal_mint_with_refund(mint_id.clone(), to, 
+                    Some(TokenMetadata {
+                        title: Some(format!("klyve hack nft {}", mint_id)), // ex. "Arch Nemesis: Mail Carrier" or "Parcel #5055"
+                        description: Some(format!("the klyve hack nft, minted Big Nana, id {}", mint_id)), // free-form description
+                        media: Some("https://near.org/wp-content/uploads/2020/09/cropped-favicon-270x270.png".to_string()), // URL to associated media, preferably to decentralized, content-addressed storage
+                        media_hash: None, // Base64-encoded sha256 hash of content referenced by the `media` field. Required if `media` is included.
+                        copies: None, // number of copies of this set of metadata in existence when token was minted.
+                        issued_at: None, // When token was issued or minted, Unix epoch in milliseconds
+                        expires_at: None, // When token expires, Unix epoch in milliseconds
+                        starts_at: None, // When token starts being valid, Unix epoch in milliseconds
+                        updated_at: None, // When token was last updated, Unix epoch in milliseconds
+                        extra: None, // anything extra the NFT wants to store on-chain. Can be stringified JSON.
+                        reference: None, // URL to an off-chain JSON file with more info.
+                        reference_hash: None 
+                    }),
+                    None,
+                );
                 "".to_string()
             },
         };
@@ -188,8 +208,6 @@ impl Contract {
     /// `self.tokens.mint` will enforce `predecessor_account_id` to equal the `owner_id` given in
     /// initialization call to `new`.
     
-    // #[payable]
-    #[private]
     pub fn nft_mint(
         &mut self,
         token_id: TokenId,
